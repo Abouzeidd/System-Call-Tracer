@@ -16,7 +16,7 @@ A lightweight Linux utility designed to intercept and record system calls made b
 
 ### Installation & Build
 1. Clone the repository:
-   ```bash
+```bash
    git clone [https://github.com/Abouzeidd/System-Call-Tracer.git](https://github.com/Abouzeidd/System-Call-Tracer.git)
    cd System-Call-Tracer
 
@@ -69,3 +69,22 @@ A static array was chosen over a hashmap because:
 - No memory allocation needed at runtime
 - Cache-friendly sequential access
 
+---
+
+## Register Extraction & CPU Logic
+
+All register access is handled in `src/registers.c` using the x86-64 ABI convention.
+
+Three functions were implemented to extract data directly from the CPU registers of the traced process:
+
+| Function | Register | Description |
+|---|---|---|
+| `get_syscall_id()` | `orig_rax` | Returns the syscall number at entry |
+| `get_syscall_args()` | `rdi, rsi, rdx, r10, r8, r9` | Returns all 6 arguments passed to the syscall |
+| `get_syscall_return()` | `rax` | Returns the return value after syscall exits |
+
+### Why orig_rax and not rax?
+
+The Linux kernel saves the original syscall number in `orig_rax` before execution.
+After the syscall runs, `rax` is overwritten with the return value.
+Using `orig_rax` guarantees we always read the correct syscall number at entry.
