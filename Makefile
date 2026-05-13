@@ -7,7 +7,8 @@ SRC = \
 	src/decoder.c \
 	src/registers.c \
 	src/syscalls.c \
-	src/formatter.c
+	src/formatter.c \
+	src/output.c
 
 OBJ = $(SRC:.c=.o)
 
