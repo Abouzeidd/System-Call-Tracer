@@ -8,7 +8,10 @@ A lightweight Linux utility designed to intercept and record system calls made b
 * **Mohamed Osama** - Error Handling & Edge Cases
 * **Mariam Mazen** - Documentation & Testing Suite
 
+---
+
 ## 🚀 Quick Start
+
 ### Prerequisites
 * Linux Environment (Ubuntu/WSL2 recommended)
 * GCC Compiler
@@ -17,8 +20,23 @@ A lightweight Linux utility designed to intercept and record system calls made b
 ### Installation & Build
 1. Clone the repository:
 ```bash
-   git clone [https://github.com/Abouzeidd/System-Call-Tracer.git](https://github.com/Abouzeidd/System-Call-Tracer.git)
-   cd System-Call-Tracer
+git clone https://github.com/Abouzeidd/System-Call-Tracer.git
+cd System-Call-Tracer
+```
+
+2. Build:
+```bash
+make
+```
+
+3. Run:
+```bash
+./strace_tracer ls
+./strace_tracer echo hello
+./strace_tracer cat /etc/hostname
+```
+
+---
 
 ## x86-64 ABI
 
@@ -88,3 +106,63 @@ Three functions were implemented to extract data directly from the CPU registers
 The Linux kernel saves the original syscall number in `orig_rax` before execution.
 After the syscall runs, `rax` is overwritten with the return value.
 Using `orig_rax` guarantees we always read the correct syscall number at entry.
+
+---
+
+## 🎨 Output Formatter — Member 4 (Kaazzy)
+
+The output module formats all tracer data into human-readable lines
+that match the style of real `strace`.
+
+**Files:** `src/output.c`, `include/output.h`  
+**Full documentation:** [docs/MEMBER4-output-formatter.md](docs/MEMBER4-output-formatter.md)
+
+### Data Flow
+
+```
+Child Process                   Parent Tracer
+─────────────                   ─────────────────────────────────────
+execvp(target)
+    │
+    │  SIGTRAP (syscall entry)
+    ├──────────────────────────► get_syscall_id()      [Member 3]
+    │                            get_syscall_name()    [Member 2]
+    │                            get_syscall_args()    [Member 3]
+    │                                 │
+    │                            output_on_entry()     [Member 4]
+    │                            saves: name, args, arg_count
+    │                                 │
+    │  SIGTRAP (syscall exit)         │
+    ├──────────────────────────► get_syscall_return()  [Member 3]
+    │                                 │
+    │                            output_on_exit()      [Member 4]
+    │                            reads child memory via PTRACE_PEEKDATA
+    │                                 │
+    │                                 ▼
+    │                            write(1, "hello", 5) = 5
+```
+
+### Component Breakdown
+
+| Component | File | Purpose |
+|---|---|---|
+| `pending_syscall_t` | `include/output.h` | Struct that bridges entry and exit stops |
+| `output_on_entry()` | `src/output.c` | Saves syscall name and args at entry stop |
+| `output_on_exit()` | `src/output.c` | Prints complete formatted line at exit stop |
+| `arg_is_string()` | `src/output.c` | Detects which arguments are string pointers |
+| `read_string()` | `src/output.c` | Reads strings from child memory via ptrace |
+| `print_return_value()` | `src/output.c` | Formats return values and errno error codes |
+
+### Sample Output
+
+```
+openat("", 0x7c3cdebd48b0, 0x80000, 0) = 3
+fstat(3, 0x7ffd3a694070) = 0
+close(3) = 0
+access("/etc/selinux/config", 0) = -1 /* error 2 */
+write(1, "hello  include  Makefile...", 77) = 77
+close(1) = 0
+close(2) = 0
+
+[DONE] Target process exited.
+```
