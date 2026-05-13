@@ -3,9 +3,9 @@ A lightweight Linux utility designed to intercept and record system calls made b
 
 ## 👥 The Team
 * **Abdelrahman Abouzeid** - Team Lead & Core Engine Logic
-* **Mohamed Osama** - Syscall Decoder & Name Mapping
+* **Malak Amir** - Syscall Decoder & Name Mapping
 * **Alaa Tamer** - Register Extraction & CPU Logic
-* **Malak Amir** - Error Handling & Edge Cases
+* **Mohamed Osama** - Error Handling & Edge Cases
 * **Mariam Mazen** - Documentation & Testing Suite
 
 ## 🚀 Quick Start
