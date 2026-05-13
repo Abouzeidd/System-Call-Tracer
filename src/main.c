@@ -54,8 +54,13 @@ int main(int argc, char *argv[]) {
                 // 2. Translate ID to Name (Member 2's logic)
                 const char* name = get_syscall_name(id);
 
-                // 3. Output the result
-                printf("[TRACER] Syscall: %-15s (ID: %ld)\n", name, id);
+                // 3. Get the first 6 arguments (Member 1's logic)
+                long args[6];
+                get_syscall_args(child, args);
+
+                printf("[TRACER] Syscall: %-15s (ID: %ld) | args: %ld, %ld, %ld\n",
+                name, id, args[0], args[1], args[2]);
+
 
                 is_entry_stop = 0; // Next stop will be the 'Exit' stop
             } else {
