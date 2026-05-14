@@ -4,14 +4,16 @@
 #include <errno.h>
 #include "output.h"
 
-/* Read a string from child process memory using PTRACE_PEEKDATA */
 static void read_string(pid_t pid, long addr, char *buf, int maxlen)
 {
     int i = 0;
     while (i < maxlen - 1) {
+        errno = 0;
         long word = ptrace(PTRACE_PEEKDATA, pid, addr + i, NULL);
-        if (word == -1 && errno != 0) break;
-        /* copy byte by byte from the word */
+        if (word == -1 && errno != 0) {
+            perror("ptrace PEEKDATA failed (read_string)");
+            break;
+        }
         char *bytes = (char *)&word;
         for (int j = 0; j < (int)sizeof(long); j++) {
             if (i >= maxlen - 1) break;
@@ -22,7 +24,6 @@ static void read_string(pid_t pid, long addr, char *buf, int maxlen)
     buf[i] = '\0';
 }
 
-/* Returns 1 if argument at arg_index is a string pointer for this syscall */
 static int arg_is_string(const char *name, int arg_index)
 {
     static const char *path_syscalls[] = {
@@ -66,7 +67,7 @@ void output_on_exit(const pending_syscall_t *pending,
             read_string(child_pid, pending->args[i], buf, sizeof(buf));
             fprintf(stderr, "\"%s\"", buf);
         } else {
-            /* small values as decimal, large as hex */
+            
             long v = pending->args[i];
             if (v >= 0 && v <= 65535)
                 fprintf(stderr, "%ld", v);
@@ -77,7 +78,6 @@ void output_on_exit(const pending_syscall_t *pending,
 
     fprintf(stderr, ") = ");
 
-    /* negative small values are errno error codes */
     if (retval < 0 && retval > -4096)
         fprintf(stderr, "-1 /* error %ld */\n", -retval);
     else
