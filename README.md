@@ -52,12 +52,6 @@ make
 
 ---
 
-Since you're the **Team Lead**, your part of the documentation should focus on the "Foundational Engine." It needs to show that you built the skeleton that everyone else's code hangs on.
-
-Here is a clean, "Member 1" specific section for your README or project report:
-
----
-
 ## 🎯 Member 1: Core Engine & Syscall Decoder
 
 **Name:** Abdelrahman Abouzeid (Team Lead)
