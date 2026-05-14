@@ -38,6 +38,80 @@ make
 
 ---
 
+📂 Project StructurePlaintext.
+├── include/
+│   └── tracer.h          # Global definitions & structs
+├── src/
+│   ├── main.c            # Tracer loop & process management
+│   ├── decoder.c         # Syscall mapping logic
+│   └── registers.c       # PTRACE_GETREGS implementation
+├── tests/
+│   └── hello.c           # Sample program for validation
+└── Makefile              # Build automation
+🛠️ Implementation DetailsFeatureDescriptionPTRACE_SYSCALLEfficiently stops the child only at syscall boundaries.Dual-Stop LogicUses a state flag to track the Entry/Exit cycle of each call.x86-64 SupportTargeted extraction of the 6-register syscall calling convention.
+
+---
+
+Since you're the **Team Lead**, your part of the documentation should focus on the "Foundational Engine." It needs to show that you built the skeleton that everyone else's code hangs on.
+
+Here is a clean, "Member 1" specific section for your README or project report:
+
+---
+
+## 🎯 Member 1: Core Engine & Syscall Decoder
+
+**Name:** Abdelrahman Abouzeid (Team Lead)
+
+**Responsibilities:** ptrace Framework, Process Lifecycle, and Syscall Mapping.
+
+### 1. The ptrace Foundation
+
+I designed and implemented the core event loop using the Linux `ptrace` API. This engine handles the critical "Dual-Stop" logic required to capture a full system call lifecycle.
+
+* **Process Synchronization:** Managed the `fork()` / `exec()` handshake, ensuring the child process is stopped immediately before execution using `PTRACE_TRACEME`.
+* **Dual-Stop Logic:** Implemented a state-machine in the main loop to distinguish between **Syscall Entry** (where we capture arguments) and **Syscall Exit** (where we capture the return value).
+* **Performance:** Utilized `PTRACE_SYSCALL` to ensure the tracer only wakes up for kernel boundaries, significantly reducing CPU overhead compared to instruction-level single-stepping.
+
+### 2. Syscall Decoder Subsystem
+
+I developed the translation layer that converts raw kernel data into human-readable information.
+
+* **Static Lookup Table:** Built a high-efficiency syscall table providing **$O(1)$ lookup time**. This translates raw syscall IDs (e.g., `1`) into names (e.g., `write`).
+* **Metadata Mapping:** Assigned argument counts to each syscall, allowing the output module to know exactly how many registers to read for a clean display.
+
+### 3. Architecture & Integration
+
+As Team Lead, I defined the **Global Header (`tracer.h`)**, which served as the project's technical contract. This ensured:
+
+* The **Register Module** knew exactly which `user_regs_struct` to populate.
+* The **Output Module** had a consistent `pending_syscall` struct to format and print.
+
+---
+
+### Key Code Contributions:
+
+| Function | Description |
+| --- | --- |
+| `main_trace_loop()` | The heartbeat of the program; manages signal handling and process states. |
+| `get_syscall_name()` | Primary interface for the decoding logic. |
+| `is_entry_stop` flag | Critical logic gate used to sync entry/exit phases. |
+
+---
+
+### Implementation Spotlight: The Dual-Stop Cycle
+
+```c
+// My logic ensures the tracer captures both sides of the kernel gate:
+if (is_entry_stop) {
+    // Capture RAX (ID) and RDI, RSI, RDX (Args)
+    is_entry_stop = 0; 
+} else {
+    // Capture RAX (Return Value)
+    is_entry_stop = 1;
+}
+
+---
+
 ## x86-64 ABI
 
 This section explains how the Linux kernel receives
