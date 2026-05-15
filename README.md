@@ -1,256 +1,328 @@
-# System Call Tracer (strace-clone)
-A lightweight Linux utility designed to intercept and record system calls made by a process. Developed as a group project for the Operating Systems course.
+## 👥 Team
 
-## 👥 The Team
-* **Abdelrahman Abouzeid** - Team Lead & Core Engine Logic
-* **Malak Amir** - Syscall Decoder & Name Mapping
-* **Alaa Tamer** - Register Extraction & CPU Logic
-* **Mohamed Osama** - Error Handling & Edge Cases
-* **Mariam Mazen** - Documentation & Testing Suite
+| Name | Role | Responsibilities |
+|------|------|------------------|
+| **Abdelrahman Abouzeid** | Team Lead & Core Engine | ptrace Framework, Process Lifecycle, Syscall Mapping |
+| **Malak Amir** | Syscall Decoder | Syscall Name Mapping & Metadata |
+| **Alaa Tamer** | Register Logic | Register Extraction & CPU Operations |
+| **Mohamed Osama** | Error Handling | Edge Cases & Resilience |
+| **Mariam Mazen** | Integration & Testing | Build System, Testing Suite, Documentation |
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-* Linux Environment (Ubuntu/WSL2 recommended)
-* GCC Compiler
-* Make build tool
+
+```bash
+# Linux Environment (Ubuntu/WSL2 recommended)
+sudo apt-get update
+sudo apt-get install build-essential
+```
+
+- **Linux Environment** (Ubuntu/WSL2 recommended)
+- **GCC Compiler**
+- **Make** build tool
 
 ### Installation & Build
-1. Clone the repository:
+
 ```bash
+# Clone the repository
 git clone https://github.com/Abouzeidd/System-Call-Tracer.git
 cd System-Call-Tracer
-```
 
-2. Build:
-```bash
+# Build
 make
-```
 
-3. Run:
-```bash
+# Run examples
 ./strace_tracer ls
-./strace_tracer echo hello
+./strace_tracer echo "hello"
 ./strace_tracer cat /etc/hostname
 ```
-
----
-
-📂 Project StructurePlaintext.
-├── include/
-│   └── tracer.h          # Global definitions & structs
-├── src/
-│   ├── main.c            # Tracer loop & process management
-│   ├── decoder.c         # Syscall mapping logic
-│   └── registers.c       # PTRACE_GETREGS implementation
-├── tests/
-│   └── hello.c           # Sample program for validation
-└── Makefile              # Build automation
-🛠️ Implementation DetailsFeatureDescriptionPTRACE_SYSCALLEfficiently stops the child only at syscall boundaries.Dual-Stop LogicUses a state flag to track the Entry/Exit cycle of each call.x86-64 SupportTargeted extraction of the 6-register syscall calling convention.
-
----
-
-## 🎯 Member 1: Core Engine & Syscall Decoder
-
-**Name:** Abdelrahman Abouzeid (Team Lead)
-
-**Responsibilities:** ptrace Framework, Process Lifecycle, and Syscall Mapping.
-
-### 1. The ptrace Foundation
-
-I designed and implemented the core event loop using the Linux `ptrace` API. This engine handles the critical "Dual-Stop" logic required to capture a full system call lifecycle.
-
-* **Process Synchronization:** Managed the `fork()` / `exec()` handshake, ensuring the child process is stopped immediately before execution using `PTRACE_TRACEME`.
-* **Dual-Stop Logic:** Implemented a state-machine in the main loop to distinguish between **Syscall Entry** (where we capture arguments) and **Syscall Exit** (where we capture the return value).
-* **Performance:** Utilized `PTRACE_SYSCALL` to ensure the tracer only wakes up for kernel boundaries, significantly reducing CPU overhead compared to instruction-level single-stepping.
-
-### 2. Syscall Decoder Subsystem
-
-I developed the translation layer that converts raw kernel data into human-readable information.
-
-* **Static Lookup Table:** Built a high-efficiency syscall table providing **$O(1)$ lookup time**. This translates raw syscall IDs (e.g., `1`) into names (e.g., `write`).
-* **Metadata Mapping:** Assigned argument counts to each syscall, allowing the output module to know exactly how many registers to read for a clean display.
-
-### 3. Architecture & Integration
-
-As Team Lead, I defined the **Global Header (`tracer.h`)**, which served as the project's technical contract. This ensured:
-
-* The **Register Module** knew exactly which `user_regs_struct` to populate.
-* The **Output Module** had a consistent `pending_syscall` struct to format and print.
-
----
-
-### Key Code Contributions:
-
-| Function | Description |
-| --- | --- |
-| `main_trace_loop()` | The heartbeat of the program; manages signal handling and process states. |
-| `get_syscall_name()` | Primary interface for the decoding logic. |
-| `is_entry_stop` flag | Critical logic gate used to sync entry/exit phases. |
-
----
-
-### Implementation Spotlight: The Dual-Stop Cycle
-
-```c
-// My logic ensures the tracer captures both sides of the kernel gate:
-if (is_entry_stop) {
-    // Capture RAX (ID) and RDI, RSI, RDX (Args)
-    is_entry_stop = 0; 
-} else {
-    // Capture RAX (Return Value)
-    is_entry_stop = 1;
-}
-
----
-
-## x86-64 ABI
-
-This section explains how the Linux kernel receives
-system call requests from user-space programs on x86-64.
-
-Linux x86-64 system calls follow a fixed ABI convention.
-
-The syscall number is stored in the RAX register.
-
-Arguments are passed using:
-- RDI → first argument
-- RSI → second argument
-- RDX → third argument
-- R10 → fourth argument
-- R8  → fifth argument
-- R9  → sixth argument
-
-### Example: write(1, "hello", 5)
-
-| Register | Value | Meaning            |
-|----------|-------|--------------------|
-| RAX      | 1     | syscall number     |
-| RDI      | 1     | file descriptor    |
-| RSI      | 0x... | pointer to "hello" |
-| RDX      | 5     | number of bytes    |
-
-After execution, RAX holds the return value (bytes written, or negative error code).
-
----
-
-## Static Syscall Table Design
-
-A static syscall table was used to provide fast lookup performance and simplify syscall decoding.
-
-Each syscall entry stores:
-- syscall number
-- syscall name
-- argument count
-
-This design avoids runtime parsing and reduces overhead during tracing.
-
-### Why not a HashMap?
-
-A static array was chosen over a hashmap because:
-- Syscall numbers are known at compile time
-- The table is small (~300 entries max)
-- No memory allocation needed at runtime
-- Cache-friendly sequential access
-
----
-
-## Register Extraction & CPU Logic
-
-All register access is handled in `src/registers.c` using the x86-64 ABI convention.
-
-Three functions were implemented to extract data directly from the CPU registers of the traced process:
-
-| Function | Register | Description |
-|---|---|---|
-| `get_syscall_id()` | `orig_rax` | Returns the syscall number at entry |
-| `get_syscall_args()` | `rdi, rsi, rdx, r10, r8, r9` | Returns all 6 arguments passed to the syscall |
-| `get_syscall_return()` | `rax` | Returns the return value after syscall exits |
-
-### Why orig_rax and not rax?
-
-The Linux kernel saves the original syscall number in `orig_rax` before execution.
-After the syscall runs, `rax` is overwritten with the return value.
-Using `orig_rax` guarantees we always read the correct syscall number at entry.
-
----
-
-## 🎨 Output Formatter — Member 4 (Kaazzy)
-
-The output module formats all tracer data into human-readable lines
-that match the style of real `strace`.
-
-**Files:** `src/output.c`, `include/output.h`  
-**Full documentation:** [docs/MEMBER4-output-formatter.md](docs/MEMBER4-output-formatter.md)
-
-### Data Flow
-
-```
-Child Process                   Parent Tracer
-─────────────                   ─────────────────────────────────────
-execvp(target)
-    │
-    │  SIGTRAP (syscall entry)
-    ├──────────────────────────► get_syscall_id()      [Member 3]
-    │                            get_syscall_name()    [Member 2]
-    │                            get_syscall_args()    [Member 3]
-    │                                 │
-    │                            output_on_entry()     [Member 4]
-    │                            saves: name, args, arg_count
-    │                                 │
-    │  SIGTRAP (syscall exit)         │
-    ├──────────────────────────► get_syscall_return()  [Member 3]
-    │                                 │
-    │                            output_on_exit()      [Member 4]
-    │                            reads child memory via PTRACE_PEEKDATA
-    │                                 │
-    │                                 ▼
-    │                            write(1, "hello", 5) = 5
-```
-
-### Component Breakdown
-
-| Component | File | Purpose |
-|---|---|---|
-| `pending_syscall_t` | `include/output.h` | Struct that bridges entry and exit stops |
-| `output_on_entry()` | `src/output.c` | Saves syscall name and args at entry stop |
-| `output_on_exit()` | `src/output.c` | Prints complete formatted line at exit stop |
-| `arg_is_string()` | `src/output.c` | Detects which arguments are string pointers |
-| `read_string()` | `src/output.c` | Reads strings from child memory via ptrace |
-| `print_return_value()` | `src/output.c` | Formats return values and errno error codes |
 
 ### Sample Output
 
 ```
-openat("", 0x7c3cdebd48b0, 0x80000, 0) = 3
+write(1, "hello include Makefile...", 77) = 77
+open("/etc/selinux/config", 0) = -1 /* error 2 */
 fstat(3, 0x7ffd3a694070) = 0
-close(3) = 0
-access("/etc/selinux/config", 0) = -1 /* error 2 */
-write(1, "hello  include  Makefile...", 77) = 77
 close(1) = 0
-close(2) = 0
-
 [DONE] Target process exited.
 ```
-🧪 Member 5: Integration & Git Manager
-Name: Mariam Mazen
-Responsibilities: Project Integration, Error Handling, Git Workflow, and Testing Suite.
-1. Project Structure & Build System
-Set up and maintained the Makefile used to compile all modules into the final binary.
-makefileCC = gcc
+
+---
+
+## 📂 Project Structure
+
+```
+System-Call-Tracer/
+├── include/
+│   ├── tracer.h          # Global definitions & structs
+│   └── output.h          # Output formatter interface
+├── src/
+│   ├── main.c            # Tracer loop & process management
+│   ├── decoder.c         # Syscall mapping logic
+│   ├── registers.c       # Register extraction (x86-64)
+│   ├── output.c          # Output formatting
+│   └── syscalls.c        # Static syscall table
+├── tests/
+│   └── hello.c           # Sample program for validation
+├── docs/
+│   ├── MEMBER1-core-engine.md
+│   ├── MEMBER2-decoder.md
+│   ├── MEMBER3-registers.md
+│   ├── MEMBER4-output-formatter.md
+│   ├── MEMBER5-testing.md
+│   └── TEST_REPORT.md
+└── Makefile              # Build automation
+```
+
+---
+
+## 🛠️ Technical Details
+
+### Core Features
+
+| Feature | Implementation | Benefit |
+|---------|-----------------|---------|
+| **PTRACE_SYSCALL** | Efficient kernel boundary tracking | Only interrupts on syscall entry/exit, not every instruction |
+| **Dual-Stop Logic** | State machine for entry/exit cycle | Captures both arguments and return values |
+| **x86-64 ABI Support** | Register-based argument extraction | Correctly reads 6-argument calling convention |
+| **Static Lookup Table** | O(1) syscall number → name mapping | Fast, cache-friendly performance |
+| **Memory Reading** | PTRACE_PEEKDATA for child process memory | Enables string argument extraction |
+
+### Architecture Overview
+
+```
+┌─────────────────┐
+│  Child Process  │
+│   execvp(bin)   │
+└────────┬────────┘
+         │ SIGTRAP (entry)
+         ▼
+   ┌──────────────────────┐
+   │   Tracer Parent      │
+   │  • get_syscall_id()  │
+   │  • get_syscall_args()│
+   │  • format output     │
+   └──────────────────────┘
+         │ SIGTRAP (exit)
+         ▼
+    Print Result
+```
+
+---
+
+## 📋 How It Works
+
+### The Dual-Stop Cycle
+
+The tracer operates by catching the same system call **twice**:
+
+1. **Entry Stop** → Read syscall number (RAX) and arguments (RDI, RSI, RDX, R10, R8, R9)
+2. **Exit Stop** → Read return value (RAX)
+
+```c
+if (is_entry_stop) {
+    // Capture syscall ID and arguments
+    syscall_id = get_syscall_id();        // from orig_rax
+    args = get_syscall_args();            // from RDI, RSI, RDX, R10, R8, R9
+    is_entry_stop = 0;
+} else {
+    // Capture return value
+    return_value = get_syscall_return();  // from rax
+    is_entry_stop = 1;
+}
+```
+
+### x86-64 System Call ABI
+
+All syscalls on x86-64 Linux follow a fixed calling convention:
+
+| Register | Purpose | Example |
+|----------|---------|---------|
+| **RAX** | Syscall number (entry) / Return value (exit) | 1 = write() |
+| **RDI** | 1st argument | file descriptor |
+| **RSI** | 2nd argument | buffer pointer |
+| **RDX** | 3rd argument | byte count |
+| **R10** | 4th argument | flags |
+| **R8** | 5th argument | - |
+| **R9** | 6th argument | - |
+
+#### Example: `write(1, "hello", 5)`
+
+| Register | Value | Meaning |
+|----------|-------|---------|
+| RAX | 1 | syscall: write |
+| RDI | 1 | fd: stdout |
+| RSI | 0x... | buffer address |
+| RDX | 5 | bytes to write |
+
+→ **Result in RAX**: 5 (bytes written)
+
+### Why `orig_rax` and not `rax`?
+
+The Linux kernel preserves the original syscall number in **`orig_rax`** because:
+- After execution, `rax` is overwritten with the return value
+- Using `orig_rax` guarantees correct syscall ID at entry
+
+---
+
+## Member Responsibilities
+
+### 🎯 Member 1: Core Engine Logic (Abdelrahman)
+
+**Focus:** ptrace Framework & Process Lifecycle
+
+- **Process Synchronization**: fork() / exec() handshake with PTRACE_TRACEME
+- **Dual-Stop State Machine**: Distinguishes entry vs. exit stops
+- **Performance Optimization**: PTRACE_SYSCALL instead of single-stepping
+- **Global Contract**: Defined tracer.h as the technical specification
+
+**Key Functions:**
+- `main_trace_loop()` — Main tracer heartbeat
+- `get_syscall_name()` — Syscall ID → name translation
+- `is_entry_stop` flag — Entry/exit synchronization
+
+---
+
+### 📍 Member 2: Syscall Decoder (Malak)
+
+**Focus:** Human-Readable Syscall Translation
+
+- **Static Lookup Table**: O(1) syscall number → name mapping
+- **Metadata Mapping**: Argument count per syscall
+- **Integration**: Provides consistent data to output module
+
+**Design Choice:** Static array vs. hashmap
+- ✅ Syscall numbers known at compile-time
+- ✅ Small table (~300 entries)
+- ✅ Zero runtime allocation
+- ✅ Cache-friendly sequential access
+
+---
+
+### 🔧 Member 3: Register Extraction (Alaa)
+
+**Focus:** CPU Register Access & x86-64 ABI
+
+**Three Core Functions:**
+
+| Function | Register | Returns |
+|----------|----------|---------|
+| `get_syscall_id()` | `orig_rax` | Syscall number |
+| `get_syscall_args()` | `rdi, rsi, rdx, r10, r8, r9` | All 6 arguments |
+| `get_syscall_return()` | `rax` | Return value / error code |
+
+**Implementation:** Uses PTRACE_GETREGS to extract user_regs_struct
+
+---
+
+### 🎨 Member 4: Output Formatter (TBD)
+
+**Focus:** Human-Readable Output Formatting
+
+**Key Components:**
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `pending_syscall_t` struct | output.h | Bridges entry & exit stops |
+| `output_on_entry()` | output.c | Saves syscall name & args |
+| `output_on_exit()` | output.c | Prints formatted line |
+| `arg_is_string()` | output.c | Detects string arguments |
+| `read_string()` | output.c | Reads from child memory |
+| `print_return_value()` | output.c | Formats errno codes |
+
+**Data Flow:**
+
+```
+Child Process (SIGTRAP)
+    ↓
+get_syscall_id() + get_syscall_args()
+    ↓
+output_on_entry() [saves: name, args, arg_count]
+    ↓
+[syscall executes]
+    ↓
+get_syscall_return()
+    ↓
+output_on_exit() [prints formatted line]
+    ↓
+Display: write(1, "hello\n", 6) = 6
+```
+
+---
+
+### 🧪 Member 5: Integration & Testing (Mariam)
+
+**Focus:** Build System, Error Handling, Quality Assurance
+
+**Build Configuration:**
+```makefile
+CC = gcc
 CFLAGS = -Wall -Iinclude
 SRC = src/main.c src/decoder.c src/registers.c src/syscalls.c src/formatter.c src/output.c
 TARGET = strace_tracer
-2. Error Handling
-Added if (ptrace(...) == -1) checks across all ptrace calls in the project to ensure the tracer fails gracefully instead of silently producing wrong output.
-FileCalls Protectedsrc/main.cfork, PTRACE_TRACEME, PTRACE_SETOPTIONS, PTRACE_SYSCALL, waitpidsrc/registers.cPTRACE_GETREGS (×3)src/output.cPTRACE_PEEKDATA
-3. Testing Suite
-Ran the tracer against 5 different programs and documented the results. Full output is available in docs/TEST_REPORT.md.
-#ProgramStatusKey Output1ls✅
- Passwrite(1, "Makefile   docs...", 48) = 482echo hello✅
-  Passwrite(1, "hello\n", 6) = 63cat /etc/hostname✅
-   Passwrite(1, "LAPTOP-EG9CRD6K\n", 16) = 164pwd✅
-    Passwrite(1, "/root/System-Call-Tracer-1\n", 27) = 275whoami✅
-     Passwrite(1, "root\n", 5) = 5
+```
+
+**Error Handling:** Added checks for all ptrace calls:
+- `fork()` / `PTRACE_TRACEME`
+- `PTRACE_SETOPTIONS` / `PTRACE_SYSCALL`
+- `waitpid()` for process synchronization
+- `PTRACE_GETREGS()` (×3 calls)
+- `PTRACE_PEEKDATA()` for memory access
+
+---
+
+## ✅ Testing & Validation
+
+### Test Suite
+
+| # | Program | Status | Key Output |
+|---|---------|--------|-----------|
+| 1 | `ls` | ✅ Pass | `write(1, "Makefile   docs...", 48) = 48` |
+| 2 | `echo hello` | ✅ Pass | `write(1, "hello\n", 6) = 6` |
+| 3 | `cat /etc/hostname` | ✅ Pass | `write(1, "LAPTOP-EG9CRD6K\n", 16) = 16` |
+| 4 | `pwd` | ✅ Pass | `write(1, "/root/System-Call-Tracer-1\n", 27) = 27` |
+| 5 | `whoami` | ✅ Pass | `write(1, "root\n", 5) = 5` |
+
+**Full Report:** See `docs/TEST_REPORT.md`
+
+---
+
+## 📚 Additional Documentation
+
+Detailed technical documentation for each team member:
+
+- **[MEMBER1-core-engine.md](docs/MEMBER1-core-engine.md)** — ptrace architecture & dual-stop logic
+- **[MEMBER2-decoder.md](docs/MEMBER2-decoder.md)** — Syscall mapping & lookup table design
+- **[MEMBER3-registers.md](docs/MEMBER3-registers.md)** — x86-64 register extraction
+- **[MEMBER4-output-formatter.md](docs/MEMBER4-output-formatter.md)** — Output formatting & string handling
+- **[MEMBER5-testing.md](docs/MEMBER5-testing.md)** — Test cases & error handling
+- **[TEST_REPORT.md](docs/TEST_REPORT.md)** — Complete validation results
+
+---
+
+## 🎓 Learning Outcomes
+
+Building this tracer taught us:
+
+- ✅ How ptrace() enables process debugging at the syscall level
+- ✅ x86-64 calling conventions and ABI specifications
+- ✅ Process synchronization with fork/exec/waitpid
+- ✅ Low-level memory access and register inspection
+- ✅ Error handling in systems programming
+- ✅ Collaborative software development practices
+
+---
+
+## 📝 Notes
+
+- This project is **educational** and demonstrates ptrace concepts
+- For production tracing, use the real `strace` utility
+- Requires **Linux** (ptrace is not available on macOS/Windows natively)
+- Full source available on **GitHub**: [Abouzeidd/System-Call-Tracer](https://github.com/Abouzeidd/System-Call-Tracer.git)
+
+---
+
+**Last Updated:** Spring 2026 | **Course:** Operating Systems (OS)
