@@ -5,7 +5,7 @@
 | **Abdelrahman Abouzeid** | Team Lead & Core Engine | ptrace Framework, Process Lifecycle, Syscall Mapping |
 | **Malak Amir** | Syscall Decoder | Syscall Name Mapping & Metadata |
 | **Alaa Tamer** | Register Logic | Register Extraction & CPU Operations |
-| **Mohamed Osama** | Error Handling | Edge Cases & Resilience |
+| **Mohamed Osama** | Error Handling | Output Formatter |
 | **Mariam Mazen** | Integration & Testing | Build System, Testing Suite, Documentation |
 
 ---
